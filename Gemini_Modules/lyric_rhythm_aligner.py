@@ -1565,11 +1565,15 @@ def select_best_audio_for_clip(
 
     if not all_candidates:
         clean_sc = (clip_id or os.path.basename(clip_folder or "")).replace("manual_", "").strip() or "clip"
-        from Telegram_Storage_Modules.telegram_vault_indexer import TelegramVaultIndexer
-        vault = TelegramVaultIndexer()
-        retrieved_audio = vault.hydrate_extracted_audio_from_vault(clean_sc, dest_dir=clip_folder)
-        if not retrieved_audio and clip_id:
-            retrieved_audio = vault.hydrate_extracted_audio_from_vault(clip_id, dest_dir=clip_folder)
+        retrieved_audio = None
+        try:
+            from Telegram_Storage_Modules.telegram_vault_indexer import TelegramVaultIndexer
+            vault = TelegramVaultIndexer()
+            retrieved_audio = vault.hydrate_extracted_audio_from_vault(clean_sc, dest_dir=clip_folder)
+            if not retrieved_audio and clip_id:
+                retrieved_audio = vault.hydrate_extracted_audio_from_vault(clip_id, dest_dir=clip_folder)
+        except ImportError:
+            vault = None
 
         if retrieved_audio and os.path.exists(retrieved_audio) and os.path.getsize(retrieved_audio) > 1024:
             track_name = os.path.basename(retrieved_audio)
@@ -1820,11 +1824,9 @@ Return ONLY valid JSON:
     try:
         try:
             from Gemini_Modules.gemini_router_module.gemini_governor import gemini_router
-        except Exception:
-            try:
-                from Intelligence_Modules.gemini_governor import gemini_router
-            except Exception:
-                from gemini_governor import gemini_router
+        except Exception as _r_err:
+            logger.error("Failed to import gemini_router from Gemini_Modules.gemini_router_module.gemini_governor: %s", _r_err)
+            gemini_router = None
 
         if gemini_router:
             logger.info("🎶 [BGM Selector] Querying Gemini Router across model vanguard...")

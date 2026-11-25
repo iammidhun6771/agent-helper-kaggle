@@ -83,16 +83,9 @@ _HAS_ROUTER = False
 try:
     from Gemini_Modules.gemini_router_module.gemini_governor import gemini_router
     _HAS_ROUTER = True
-except ImportError:
-    try:
-        from Intelligence_Modules.gemini_governor import gemini_router
-        _HAS_ROUTER = True
-    except ImportError:
-        try:
-            from gemini_governor import gemini_router
-            _HAS_ROUTER = True
-        except ImportError:
-            gemini_router = None
+except ImportError as _r_err:
+    logger.error("Failed to import gemini_router from Gemini_Modules.gemini_router_module.gemini_governor: %s", _r_err)
+    gemini_router = None
 
 _CACHED_FONT_PATH: Optional[str] = None
 

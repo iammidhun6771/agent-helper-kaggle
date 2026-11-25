@@ -138,8 +138,11 @@ def select_clip_bgm(
         if c and c not in candidates_to_try and not _is_bl(c):
             candidates_to_try.append(c)
 
-    from Telegram_Storage_Modules.telegram_vault_indexer import TelegramVaultIndexer
-    vault = TelegramVaultIndexer()
+    try:
+        from Telegram_Storage_Modules.telegram_vault_indexer import TelegramVaultIndexer
+        vault = TelegramVaultIndexer()
+    except ImportError:
+        vault = None
 
     # Pre-map file IDs from lyric_rhythm_aligner
     cand_fids = dict(res.get("candidate_file_ids") or {})
@@ -147,24 +150,28 @@ def select_clip_bgm(
         cand_fids[selected_track_name] = res["telegram_file_id"]
 
     # Supplement candidate list from vault audio pool if pool is small
-    try:
-        vault_pool = vault.get_vault_audio_pool(current_clip_id=clip_id) or {}
-        for vtrack, vmeta in vault_pool.items():
-            vfid = vmeta.get("file_id") or vmeta.get("telegram_file_id") if isinstance(vmeta, dict) else None
-            if _is_bl(vtrack, telegram_file_id=vfid):
-                continue
-            if vtrack not in candidates_to_try and (not exclude_filenames or vtrack not in exclude_filenames):
-                candidates_to_try.append(vtrack)
-                if vtrack not in cand_fids and vfid:
-                    cand_fids[vtrack] = vfid
-    except Exception as _vp_err:
-        logger.debug(f"[STEP 04] Notice fetching vault audio pool candidates: {_vp_err}")
+    if vault is not None:
+        try:
+            vault_pool = vault.get_vault_audio_pool(current_clip_id=clip_id) or {}
+            for vtrack, vmeta in vault_pool.items():
+                vfid = vmeta.get("file_id") or vmeta.get("telegram_file_id") if isinstance(vmeta, dict) else None
+                if _is_bl(vtrack, telegram_file_id=vfid):
+                    continue
+                if vtrack not in candidates_to_try and (not exclude_filenames or vtrack not in exclude_filenames):
+                    candidates_to_try.append(vtrack)
+                    if vtrack not in cand_fids and vfid:
+                        cand_fids[vtrack] = vfid
+        except Exception as _vp_err:
+            logger.debug(f"[STEP 04] Notice fetching vault audio pool candidates: {_vp_err}")
 
     failed_candidates = set()
     for cand_name in candidates_to_try:
         cand_fid = cand_fids.get(cand_name)
         if _is_bl(cand_name, telegram_file_id=cand_fid):
             logger.warning(f"🚫 [STEP 04] Skipping blacklisted candidate '{cand_name}'.")
+            failed_candidates.add(cand_name)
+            continue
+        if vault is None:
             failed_candidates.add(cand_name)
             continue
         try:

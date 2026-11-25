@@ -1561,11 +1561,30 @@ class AudioPoolManager:
         Returns the count of purged duplicate keys.
         """
         import re
-        from Telegram_Storage_Modules.telegram_vault_indexer import (
-            extract_clean_shortcode,
-            canonicalize_social_url,
-            deep_merge_records,
-        )
+        try:
+            from Telegram_Storage_Modules.telegram_vault_indexer import (
+                extract_clean_shortcode,
+                canonicalize_social_url,
+                deep_merge_records,
+            )
+        except ImportError:
+            def extract_clean_shortcode(val: Optional[str]) -> Optional[str]:
+                if not val or not isinstance(val, str):
+                    return None
+                m = re.search(r"(?:reel|p|tv|shorts|videos?)/([A-Za-z0-9_-]{5,})", val)
+                return m.group(1) if m else (val.strip().rstrip("/").split("/")[-1].split("?")[0] or None)
+
+            def canonicalize_social_url(val: Optional[str]) -> Optional[str]:
+                return val.split("?")[0].strip().rstrip("/") if isinstance(val, str) and val.strip() else val
+
+            def deep_merge_records(base: dict, incoming: dict) -> dict:
+                out = dict(base or {})
+                for k, v in (incoming or {}).items():
+                    if isinstance(v, dict) and isinstance(out.get(k), dict):
+                        out[k] = deep_merge_records(out[k], v)
+                    elif v not in (None, "", []):
+                        out[k] = v
+                return out
 
         with self.lock:
             files_root = self.metadata.get("files", {})
@@ -2094,6 +2113,8 @@ def get_pool_manager(base_dir: Optional[str] = None) -> AudioPoolManager:
             if _global_pool_manager is None:
                 _global_pool_manager = AudioPoolManager(base_dir=base_dir)
     return _global_pool_manager
+
+pool_manager = get_pool_manager
 
 def __getattr__(name: str):
     if name == "pool_manager":
